@@ -6,7 +6,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Import models so that Base.metadata is populated
-from app.models import *  # noqa: F401,F403
+from app.models import *  # noqa: F401, F403
 from app.database import Base
 
 config = context.config
