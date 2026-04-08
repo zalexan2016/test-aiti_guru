@@ -14,6 +14,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - shop-network
 
   alembic:
     build: .
@@ -24,6 +26,8 @@ services:
       db:
         condition: service_healthy
     restart: "no"
+    networks:
+      - shop-network
 
   api:
     build: .
@@ -34,6 +38,16 @@ services:
     depends_on:
       alembic:
         condition: service_completed_successfully
+    networks:
+      - shop-network
 
 volumes:
   pgdata:
+
+networks:
+  shop-network:
+    name: shop-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.90.50.0/24
