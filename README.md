@@ -300,23 +300,34 @@ ORDER BY c.id;
 
 ### 2.3.1 VIEW «Топ-5 товаров за последний месяц»
 
-Представление возвращает пять товаров с наибольшим суммарным количеством проданных штук за последний календарный месяц. Рекурсивный CTE (`category_root`) поднимается по дереву категорий от категории товара до корневой категории (`parent_id IS NULL`), чтобы определить категорию первого уровня для каждого товара.
+Представление возвращает пять товаров с наибольшим суммарным количеством проданных штук за последние 30 дней. Рекурсивный CTE (`category_path`) поднимается по дереву категорий от категории товара до корневой категории (`parent_id IS NULL`), чтобы определить категорию первого уровня для каждого товара.
 
 ```sql
 CREATE OR REPLACE VIEW top5_products_last_month AS
-WITH RECURSIVE category_root AS (
-    -- Базовый случай: категории, привязанные к товарам
-    SELECT pc.product_id, cat.id AS category_id, cat.parent_id
+WITH RECURSIVE category_path AS (
+    -- Базовый случай: начинаем с категорий, привязанных к товарам
+    SELECT
+        pc.product_id,
+        cat.id AS current_id,
+        cat.parent_id
     FROM product_categories pc
     JOIN categories cat ON cat.id = pc.category_id
 
-    UNION ALL
+    UNION
 
-    -- Рекурсивный шаг: поднимаемся к корню
-    SELECT cr.product_id, parent.id AS category_id, parent.parent_id
-    FROM category_root cr
-    JOIN categories parent ON parent.id = cr.parent_id
-    WHERE cr.parent_id IS NOT NULL
+    -- Рекурсивный шаг: поднимаемся к родителю
+    SELECT
+        cp.product_id,
+        parent.id AS current_id,
+        parent.parent_id
+    FROM category_path cp
+    JOIN categories parent ON parent.id = cp.parent_id
+),
+product_root AS (
+    -- Выбираем корневую категорию (parent_id IS NULL) для каждого товара
+    SELECT DISTINCT product_id, current_id AS root_category_id
+    FROM category_path
+    WHERE parent_id IS NULL
 )
 SELECT
     p.name AS product_name,
@@ -325,28 +336,26 @@ SELECT
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
 JOIN products p ON p.id = oi.product_id
-LEFT JOIN (
-    SELECT DISTINCT product_id, category_id
-    FROM category_root
-    WHERE parent_id IS NULL
-) pr ON pr.product_id = p.id
-LEFT JOIN categories root_cat ON root_cat.id = pr.category_id
-WHERE o.created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
-  AND o.created_at < date_trunc('month', CURRENT_DATE)
+LEFT JOIN product_root pr ON pr.product_id = p.id
+LEFT JOIN categories root_cat ON root_cat.id = pr.root_category_id
+WHERE o.created_at >= NOW() - INTERVAL '1 month'
 GROUP BY p.id, p.name, root_cat.name
 ORDER BY total_sold DESC
 LIMIT 5;
+
+-- Выборка данных из представления
+SELECT * FROM top5_products_last_month;
 ```
 
 Пример результата:
 
 | product_name | root_category_name | total_sold |
 |-------------|-------------------|-----------|
-| iPhone 15 | Электроника | 320 |
-| Galaxy S24 | Электроника | 275 |
-| MacBook Air | Электроника | 150 |
-| Кроссовки Nike | Одежда и обувь | 130 |
-| Наушники AirPods | Электроника | 95 |
+| Телевизор Samsung UE43 | Бытовая техника | 8 |
+| Стиральная машина Samsung WW60 | Бытовая техника | 2 |
+| Холодильник Beko RCSK270 | Бытовая техника | 2 |
+| Моноблок HP All-in-One | Компьютеры | 1 |
+| Ноутбук Lenovo IdeaPad 19 | Компьютеры | 1 |
 
 
 ## Анализ и оптимизация (пункт 2.3.2)

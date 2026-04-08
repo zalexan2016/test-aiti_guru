@@ -1,28 +1,38 @@
 -- VIEW «Топ-5 товаров за последний месяц» (Требование 7)
 --
 -- Представление возвращает пять товаров с наибольшим суммарным количеством
--- проданных штук за последний календарный месяц.
--- Рекурсивный CTE (category_root) поднимается по дереву категорий от категории
+-- проданных штук за последние 30 дней.
+-- Рекурсивный CTE (category_path) поднимается по дереву категорий от категории
 -- товара до корневой категории (parent_id IS NULL), чтобы определить категорию
 -- первого уровня для каждого товара.
--- Фильтрация заказов: >= начало прошлого месяца AND < начало текущего месяца.
 -- Поля: наименование товара, наименование корневой категории, общее количество проданных штук.
 -- Результат отсортирован по убыванию total_sold, ограничен 5 записями.
 
 CREATE OR REPLACE VIEW top5_products_last_month AS
-WITH RECURSIVE category_root AS (
-    -- Базовый случай: категории, привязанные к товарам
-    SELECT pc.product_id, cat.id AS category_id, cat.parent_id
+WITH RECURSIVE category_path AS (
+    -- Базовый случай: начинаем с категорий, привязанных к товарам
+    SELECT
+        pc.product_id,
+        cat.id AS current_id,
+        cat.parent_id
     FROM product_categories pc
     JOIN categories cat ON cat.id = pc.category_id
 
-    UNION ALL
+    UNION
 
-    -- Рекурсивный шаг: поднимаемся к корню
-    SELECT cr.product_id, parent.id AS category_id, parent.parent_id
-    FROM category_root cr
-    JOIN categories parent ON parent.id = cr.parent_id
-    WHERE cr.parent_id IS NOT NULL
+    -- Рекурсивный шаг: поднимаемся к родителю (только если parent_id не NULL)
+    SELECT
+        cp.product_id,
+        parent.id AS current_id,
+        parent.parent_id
+    FROM category_path cp
+    JOIN categories parent ON parent.id = cp.parent_id
+),
+product_root AS (
+    -- Выбираем корневую категорию (parent_id IS NULL) для каждого товара
+    SELECT DISTINCT product_id, current_id AS root_category_id
+    FROM category_path
+    WHERE parent_id IS NULL
 )
 SELECT
     p.name AS product_name,
@@ -31,14 +41,12 @@ SELECT
 FROM order_items oi
 JOIN orders o ON o.id = oi.order_id
 JOIN products p ON p.id = oi.product_id
-LEFT JOIN (
-    SELECT DISTINCT product_id, category_id
-    FROM category_root
-    WHERE parent_id IS NULL
-) pr ON pr.product_id = p.id
-LEFT JOIN categories root_cat ON root_cat.id = pr.category_id
-WHERE o.created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'
-  AND o.created_at < date_trunc('month', CURRENT_DATE)
+LEFT JOIN product_root pr ON pr.product_id = p.id
+LEFT JOIN categories root_cat ON root_cat.id = pr.root_category_id
+WHERE o.created_at >= NOW() - INTERVAL '1 month'
 GROUP BY p.id, p.name, root_cat.name
 ORDER BY total_sold DESC
 LIMIT 5;
+
+-- Выборка данных из представления
+SELECT * FROM top5_products_last_month;
