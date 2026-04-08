@@ -12,37 +12,37 @@ async def add_item_to_order(
     product_id: int,
     quantity: int,
 ) -> AddItemResponse:
-    """Добавить товар в заказ (upsert) с проверкой наличия и списанием со склада."""
+    """Add product to order (upsert) with stock check and deduction."""
 
-    # 1. Проверить существование заказа
+    # 1. Check order exists
     order = await db.get(Order, order_id)
     if order is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Заказ с id={order_id} не найден",
+            detail=f"Order with id={order_id} not found",
         )
 
-    # 2. Получить товар с блокировкой строки (SELECT ... FOR UPDATE)
+    # 2. Get product with row lock (SELECT ... FOR UPDATE)
     stmt = select(Product).where(Product.id == product_id).with_for_update()
     result = await db.execute(stmt)
     product = result.scalar_one_or_none()
     if product is None:
         raise HTTPException(
             status_code=404,
-            detail=f"Товар с id={product_id} не найден",
+            detail=f"Product with id={product_id} not found",
         )
 
-    # 3. Проверить наличие на складе
+    # 3. Check stock availability
     if product.stock < quantity:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Недостаточно товара на складе. "
-                f"Доступно: {product.stock}, запрошено: {quantity}"
+                f"Not enough stock. "
+                f"Available: {product.stock}, requested: {quantity}"
             ),
         )
 
-    # 4. Upsert позиции заказа
+    # 4. Upsert order item
     stmt = (
         select(OrderItem)
         .where(OrderItem.order_id == order_id, OrderItem.product_id == product_id)
@@ -52,7 +52,7 @@ async def add_item_to_order(
 
     if existing_item is not None:
         existing_item.quantity += quantity
-        message = "Позиция обновлена"
+        message = "Item updated"
         result_quantity = existing_item.quantity
     else:
         new_item = OrderItem(
@@ -62,13 +62,13 @@ async def add_item_to_order(
             price=product.price,
         )
         db.add(new_item)
-        message = "Позиция добавлена"
+        message = "Item added"
         result_quantity = quantity
 
-    # 5. Списать со склада
+    # 5. Deduct from stock
     product.stock -= quantity
 
-    # 6. Commit транзакции
+    # 6. Commit transaction
     await db.commit()
 
     return AddItemResponse(

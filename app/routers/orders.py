@@ -7,18 +7,17 @@ from app.services.order_service import add_item_to_order
 router = APIRouter()
 
 
-@router.post("/orders/{order_id}/items", response_model=AddItemResponse)
+@router.post("/orders/items", response_model=AddItemResponse)
 async def post_add_item(
-    order_id: int,
     body: AddItemRequest,
     response: Response,
-):
+) -> AddItemResponse:
     session = async_session()
     try:
         result = await add_item_to_order(
-            session, order_id, body.product_id, body.quantity
+            session, body.order_id, body.product_id, body.quantity
         )
-        if result.message == "Позиция добавлена":
+        if result.message == "Item added":
             response.status_code = 201
         else:
             response.status_code = 200

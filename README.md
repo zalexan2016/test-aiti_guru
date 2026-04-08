@@ -160,19 +160,20 @@ erDiagram
 
 ## API
 
-### POST /orders/{order_id}/items — Добавление товара в заказ
+### POST /api/orders/items — Добавление товара в заказ
 
 Добавляет товар в существующий заказ. Если товар уже есть в заказе — увеличивает количество (upsert). Списывает количество со склада. Использует `SELECT ... FOR UPDATE` для защиты от race condition.
 
 #### Запрос
 
 ```
-POST /orders/{order_id}/items
+POST /api/orders/items
 Content-Type: application/json
 ```
 
 ```json
 {
+  "order_id": 1,
   "product_id": 1,
   "quantity": 3
 }
@@ -180,7 +181,7 @@ Content-Type: application/json
 
 | Параметр | Тип | Описание |
 |----------|-----|----------|
-| order_id (path) | int | Идентификатор заказа |
+| order_id (body) | int | Идентификатор заказа |
 | product_id (body) | int | Идентификатор товара |
 | quantity (body) | int | Количество (> 0) |
 
@@ -422,7 +423,7 @@ order-management-system/
 │   ├── schemas.py              # Pydantic-схемы (AddItemRequest, AddItemResponse)
 │   ├── routers/
 │   │   ├── __init__.py
-│   │   └── orders.py           # POST /orders/{order_id}/items
+│   │   └── orders.py           # POST /api/orders/items
 │   └── services/
 │       ├── __init__.py
 │       └── order_service.py    # Бизнес-логика добавления товара в заказ

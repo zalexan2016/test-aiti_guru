@@ -46,7 +46,7 @@ class Product(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     stock: Mapped[int] = mapped_column(nullable=False)
-    price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
 
     product_categories: Mapped[list["ProductCategory"]] = relationship(
         "ProductCategory", back_populates="product"
@@ -127,7 +127,7 @@ class OrderItem(Base):
         ForeignKey("products.id"), nullable=False
     )
     quantity: Mapped[int] = mapped_column(nullable=False)
-    price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
 
     order: Mapped["Order"] = relationship("Order", back_populates="items")
     product: Mapped["Product"] = relationship("Product", back_populates="order_items")
